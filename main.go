@@ -26,6 +26,21 @@ func fetchDomain(linodeClient *linodego.Client, domain string) (*linodego.Domain
 	return nil, nil
 }
 
+func fetchRecord(linodeClient *linodego.Client, domainId int, record string) (*linodego.DomainRecord, error) {
+	records, err := linodeClient.ListDomainRecords(context.Background(), domainId, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, entry := range records {
+		if entry.Name == record {
+			return &entry, nil
+		}
+	}
+
+	return nil, nil
+}
+
 func main() {
 	apiKey, ok := os.LookupEnv("LINODE_TOKEN")
 
@@ -44,10 +59,15 @@ func main() {
 	linodeClient := linodego.NewClient(oauth2Client)
 	//linodeClient.SetDebug(true)
 
-	res, err := fetchDomain(&linodeClient, "zardoz.no") // linodeClient.ListDomains(context.Background(), nil)
+	domain, err := fetchDomain(&linodeClient, "zardoz.no") // linodeClient.ListDomains(context.Background(), nil)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Printf("%v", res.ID)
+	record, err := fetchRecord(&linodeClient, domain.ID, "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Printf("%v", record)
 }
