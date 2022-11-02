@@ -25,6 +25,8 @@ type DomainToUpdate struct {
 	RecordName string `json:"record"`
 }
 
+var config Config
+
 func getConfig(fileName string) Config {
 	fileStream, err := os.Open(fileName)
 	if err != nil {
@@ -40,7 +42,7 @@ func getConfig(fileName string) Config {
 	if err != nil {
 		log.Fatal("Error parsing file")
 	}
-	fmt.Printf("%v\n", config)
+
 	return config
 }
 
@@ -96,6 +98,41 @@ func fetchRecord(linodeClient *linodego.Client, domainId int, record string) (*l
 	return nil, nil
 }
 
+func updateRecord(linodeClient *linodego.Client, domainId int, record string, ipAddress string) error {
+	domainRecord, err := fetchRecord(linodeClient, domainId, record)
+	if err != nil {
+		log.Fatal(err)
+	}
+	if domainRecord != nil {
+		if domainRecord.Target == ipAddress {
+			fmt.Printf("Record already up to date\n")
+			return nil
+		} else {
+			_, err := linodeClient.UpdateDomainRecord(context.Background(), domainId, domainRecord.ID, linodego.DomainRecordUpdateOptions{
+				Name:   record,
+				Target: ipAddress,
+				Type:   linodego.RecordTypeA,
+				TTLSec: config.DefaultTTL,
+			})
+			if err != nil {
+				return fmt.Errorf("failed to update record %s", record)
+			}
+		}
+	} else {
+		// we need to create the record
+		_, err := linodeClient.CreateDomainRecord(context.Background(), domainId, linodego.DomainRecordCreateOptions{
+			Name:   record,
+			Target: ipAddress,
+			Type:   linodego.RecordTypeA,
+			TTLSec: config.DefaultTTL,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create record %s", record)
+		}
+	}
+	return nil
+}
+
 func main() {
 	apiKey, ok := os.LookupEnv("LINODE_TOKEN")
 
@@ -112,18 +149,16 @@ func main() {
 	}
 
 	linodeClient := linodego.NewClient(oauth2Client)
-	//linodeClient.SetDebug(true)
 
-	domain, err := fetchDomain(&linodeClient, "ugle-z.no")
-	if err != nil {
-		log.Fatal(err)
-	}
+	myIP := getMyIP()
+	config = getConfig("config.json")
 
-	record, err := fetchRecord(&linodeClient, domain.ID, "www")
-	if err != nil {
-		log.Fatal(err)
+	for _, entry := range config.DomainsToUpdate {
+		fmt.Printf("Updating %s.%s to %s\n", entry.RecordName, entry.DomainName, myIP)
+		domain, err := fetchDomain(&linodeClient, entry.DomainName)
+		if err != nil {
+			log.Fatalf("Can't find domain %s.\n", entry.DomainName)
+		}
+		updateRecord(&linodeClient, domain.ID, entry.RecordName, myIP)
 	}
-	getConfig("config.json")
-	fmt.Printf("%s\n", getMyIP())
-	fmt.Printf("%v\n", record)
 }
