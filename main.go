@@ -2,15 +2,88 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/linode/linodego"
 	"golang.org/x/oauth2"
 )
 
+type Config struct {
+	DomainsToUpdate []DomainToUpdate `json:"domains"`
+	DefaultTTL      int              `json:"default_ttl"`
+}
+
+type DomainToUpdate struct {
+	DomainName string `json:"domain"`
+	RecordName string `json:"record"`
+}
+
+func getConfig(fileName string) Config {
+	fileStream, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal("Can't open file!")
+	}
+	bytes, err := ioutil.ReadAll(fileStream)
+	if err != nil {
+		log.Fatal("Error reading file")
+	}
+	var config Config
+
+	err = json.Unmarshal(bytes, &config)
+	if err != nil {
+		log.Fatal("Error parsing file")
+	}
+	fmt.Printf("%v\n", config)
+	return config
+}
+
+func getDomainsToUpdate(fileName string) []DomainToUpdate {
+	fileStream, err := os.Open(fileName)
+	if err != nil {
+		log.Fatal("Can't open file!")
+	}
+	bytes, err := ioutil.ReadAll(fileStream)
+	if err != nil {
+		log.Fatal("Error reading file")
+	}
+	var domainsToUpdate []DomainToUpdate
+
+	err = json.Unmarshal(bytes, &domainsToUpdate)
+	if err != nil {
+		log.Fatal("Error parsing file")
+	}
+	fmt.Printf("%v\n", domainsToUpdate)
+	return domainsToUpdate
+}
+
+// gets the current outgoing IP
+func getMyIP() string {
+	req, err := http.NewRequest("GET", "http://api.discombobulator.org/cgi-bin/ip.cgi", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
+	client := &http.Client{}
+	response, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer response.Body.Close()
+	bytes, err := io.ReadAll(response.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+	return strings.TrimSuffix(string(bytes), "\n")
+}
+
+// fetch domain matching the string 'domain'
 func fetchDomain(linodeClient *linodego.Client, domain string) (*linodego.Domain, error) {
 	domains, err := linodeClient.ListDomains(context.Background(), linodego.NewListOptions(0, ""))
 	if err != nil {
@@ -26,6 +99,7 @@ func fetchDomain(linodeClient *linodego.Client, domain string) (*linodego.Domain
 	return nil, nil
 }
 
+// fetch DNS records for domain with id domainId
 func fetchRecord(linodeClient *linodego.Client, domainId int, record string) (*linodego.DomainRecord, error) {
 	records, err := linodeClient.ListDomainRecords(context.Background(), domainId, nil)
 	if err != nil {
@@ -59,15 +133,16 @@ func main() {
 	linodeClient := linodego.NewClient(oauth2Client)
 	//linodeClient.SetDebug(true)
 
-	domain, err := fetchDomain(&linodeClient, "zardoz.no") // linodeClient.ListDomains(context.Background(), nil)
+	domain, err := fetchDomain(&linodeClient, "ugle-z.no")
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	record, err := fetchRecord(&linodeClient, domain.ID, "")
+	record, err := fetchRecord(&linodeClient, domain.ID, "www")
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	fmt.Printf("%v", record)
+	getConfig("config.json")
+	fmt.Printf("%s\n", getMyIP())
+	fmt.Printf("%v\n", record)
 }

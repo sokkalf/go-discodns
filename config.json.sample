@@ -1,0 +1,13 @@
+{
+  "default_ttl": 300,
+  "domains": [
+    {
+      "domain": "ugle-z.no",
+      "record": "disco"
+    },
+    {
+      "domain": "zardoz.no",
+      "record": "disco"
+    }
+  ]
+}
