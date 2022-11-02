@@ -44,25 +44,6 @@ func getConfig(fileName string) Config {
 	return config
 }
 
-func getDomainsToUpdate(fileName string) []DomainToUpdate {
-	fileStream, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal("Can't open file!")
-	}
-	bytes, err := ioutil.ReadAll(fileStream)
-	if err != nil {
-		log.Fatal("Error reading file")
-	}
-	var domainsToUpdate []DomainToUpdate
-
-	err = json.Unmarshal(bytes, &domainsToUpdate)
-	if err != nil {
-		log.Fatal("Error parsing file")
-	}
-	fmt.Printf("%v\n", domainsToUpdate)
-	return domainsToUpdate
-}
-
 // gets the current outgoing IP
 func getMyIP() string {
 	req, err := http.NewRequest("GET", "http://api.discombobulator.org/cgi-bin/ip.cgi", nil)
