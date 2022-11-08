@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -64,7 +65,11 @@ func getMyIP(ctx context.Context) string {
 	if err != nil {
 		log.Fatal(err)
 	}
-	return strings.TrimSuffix(string(bytes), "\n")
+	ip := strings.TrimSuffix(string(bytes), "\n")
+	if net.ParseIP(ip) == nil {
+		log.Fatalf("Not a valid IP: %s", ip)
+	}
+	return ip
 }
 
 // fetch domain matching the string 'domain'
