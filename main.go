@@ -104,7 +104,7 @@ func fetchRecord(ctx context.Context, linodeClient *linodego.Client, domainId in
 	return nil, nil
 }
 
-func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId int, record string, ipAddress string) error {
+func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId int, domain string, record string, ipAddress string) error {
 	domainRecord, err := fetchRecord(ctx, linodeClient, domainId, record)
 	if err != nil {
 		log.Fatal(err)
@@ -113,9 +113,9 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 
 	if domainRecord != nil {
 		if domainRecord.Target == ipAddress {
-			fmt.Printf("Record already up to date\n")
 			return nil
 		} else {
+			fmt.Printf("Updating record %s for domain %s with IP %s", record, domain, ipAddress)
 			_, err := linodeClient.UpdateDomainRecord(ctx, domainId, domainRecord.ID, linodego.DomainRecordUpdateOptions{
 				Name:   record,
 				Target: ipAddress,
@@ -128,6 +128,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 		}
 	} else {
 		// we need to create the record
+		fmt.Printf("Creating record %s for domain %s with IP %s", record, domain, ipAddress)
 		_, err := linodeClient.CreateDomainRecord(ctx, domainId, linodego.DomainRecordCreateOptions{
 			Name:   record,
 			Target: ipAddress,
@@ -163,11 +164,10 @@ func main() {
 	ctx = context.WithValue(ctx, configKey{}, config)
 	myIP := getMyIP(ctx)
 	for _, entry := range config.DomainsToUpdate {
-		fmt.Printf("Updating %s.%s to %s\n", entry.RecordName, entry.DomainName, myIP)
 		domain, err := fetchDomain(ctx, &linodeClient, entry.DomainName)
 		if err != nil {
 			log.Fatalf("Can't find domain %s.\n", entry.DomainName)
 		}
-		updateRecord(ctx, &linodeClient, domain.ID, entry.RecordName, myIP)
+		updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP)
 	}
 }
