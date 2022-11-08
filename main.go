@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -15,9 +14,12 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type configKey struct{}
+
 type Config struct {
 	DomainsToUpdate []DomainToUpdate `json:"domains"`
 	DefaultTTL      int              `json:"default_ttl"`
+	IpFinderURL     string           `json:"ip_finder_url"`
 }
 
 type DomainToUpdate struct {
@@ -30,7 +32,7 @@ func getConfig(fileName string) Config {
 	if err != nil {
 		log.Fatal("Can't open file!")
 	}
-	bytes, err := ioutil.ReadAll(fileStream)
+	bytes, err := io.ReadAll(fileStream)
 	if err != nil {
 		log.Fatal("Error reading file")
 	}
@@ -45,8 +47,9 @@ func getConfig(fileName string) Config {
 }
 
 // gets the current outgoing IP
-func getMyIP() string {
-	req, err := http.NewRequest("GET", "http://api.discombobulator.org/cgi-bin/ip.cgi", nil)
+func getMyIP(ctx context.Context) string {
+	config := ctx.Value(configKey{}).(Config)
+	req, err := http.NewRequest("GET", config.IpFinderURL, nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,7 +104,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 	if err != nil {
 		log.Fatal(err)
 	}
-	config := ctx.Value("config").(Config)
+	config := ctx.Value(configKey{}).(Config)
 
 	if domainRecord != nil {
 		if domainRecord.Target == ipAddress {
@@ -150,10 +153,10 @@ func main() {
 
 	linodeClient := linodego.NewClient(oauth2Client)
 
-	myIP := getMyIP()
 	config := getConfig("config.json")
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, "config", config)
+	ctx = context.WithValue(ctx, configKey{}, config)
+	myIP := getMyIP(ctx)
 	for _, entry := range config.DomainsToUpdate {
 		fmt.Printf("Updating %s.%s to %s\n", entry.RecordName, entry.DomainName, myIP)
 		domain, err := fetchDomain(ctx, &linodeClient, entry.DomainName)

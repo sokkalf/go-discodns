@@ -1,5 +1,6 @@
 {
   "default_ttl": 300,
+  "ip_finder_url": "http://api.discombobulator.org/cgi-bin/ip.cgi",
   "domains": [
     {
       "domain": "ugle-z.no",
