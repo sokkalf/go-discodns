@@ -96,7 +96,7 @@ func fetchRecord(ctx context.Context, linodeClient *linodego.Client, domainId in
 	}
 
 	for _, entry := range records {
-		if entry.Name == record {
+		if entry.Name == record && entry.Type == linodego.RecordTypeA {
 			return &entry, nil
 		}
 	}
@@ -115,7 +115,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 		if domainRecord.Target == ipAddress {
 			return nil
 		} else {
-			fmt.Printf("Updating record %s for domain %s with IP %s", record, domain, ipAddress)
+			fmt.Printf("Updating record %s for domain %s with IP %s\n", record, domain, ipAddress)
 			_, err := linodeClient.UpdateDomainRecord(ctx, domainId, domainRecord.ID, linodego.DomainRecordUpdateOptions{
 				Name:   record,
 				Target: ipAddress,
@@ -128,7 +128,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 		}
 	} else {
 		// we need to create the record
-		fmt.Printf("Creating record %s for domain %s with IP %s", record, domain, ipAddress)
+		fmt.Printf("Creating record %s for domain %s with IP %s\n", record, domain, ipAddress)
 		_, err := linodeClient.CreateDomainRecord(ctx, domainId, linodego.DomainRecordCreateOptions{
 			Name:   record,
 			Target: ipAddress,
@@ -136,7 +136,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 			TTLSec: config.DefaultTTL,
 		})
 		if err != nil {
-			return fmt.Errorf("failed to create record %s", record)
+			return fmt.Errorf("failed to create record %s\n", record)
 		}
 	}
 	return nil
