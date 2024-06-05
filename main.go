@@ -48,13 +48,22 @@ func getConfig(fileName string) Config {
 }
 
 // gets the current outgoing IP
-func getMyIP(ctx context.Context) string {
+func getMyIP(ctx context.Context, mode string) (string, error) {
 	config := ctx.Value(configKey{}).(Config)
+	var zeroDialer net.Dialer
+	httpClient := &http.Client{}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+    transport.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+        return zeroDialer.DialContext(ctx, mode, addr)
+    }
+    httpClient.Transport = transport
+
 	req, err := http.NewRequest("GET", config.IpFinderURL, nil)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return "", err
 	}
-	client := &http.Client{}
+	client := httpClient
 	response, err := client.Do(req)
 	if err != nil {
 		log.Fatal(err)
@@ -63,13 +72,14 @@ func getMyIP(ctx context.Context) string {
 	defer response.Body.Close()
 	bytes, err := io.ReadAll(response.Body)
 	if err != nil {
-		log.Fatal(err)
+		log.Println(err)
+		return "", err
 	}
 	ip := strings.TrimSuffix(string(bytes), "\n")
 	if net.ParseIP(ip) == nil {
-		log.Fatalf("Not a valid IP: %s", ip)
+		log.Printf("Not a valid IP: %s\n", ip)
 	}
-	return ip
+	return ip, nil
 }
 
 // fetch domain matching the string 'domain'
@@ -89,14 +99,14 @@ func fetchDomain(ctx context.Context, linodeClient *linodego.Client, domain stri
 }
 
 // fetch DNS records for domain with id domainId
-func fetchRecord(ctx context.Context, linodeClient *linodego.Client, domainId int, record string) (*linodego.DomainRecord, error) {
+func fetchRecord(ctx context.Context, linodeClient *linodego.Client, domainId int, record string, recordType linodego.DomainRecordType) (*linodego.DomainRecord, error) {
 	records, err := linodeClient.ListDomainRecords(ctx, domainId, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	for _, entry := range records {
-		if entry.Name == record && entry.Type == linodego.RecordTypeA {
+		if entry.Name == record && entry.Type == recordType {
 			return &entry, nil
 		}
 	}
@@ -104,8 +114,8 @@ func fetchRecord(ctx context.Context, linodeClient *linodego.Client, domainId in
 	return nil, nil
 }
 
-func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId int, domain string, record string, ipAddress string) error {
-	domainRecord, err := fetchRecord(ctx, linodeClient, domainId, record)
+func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId int, domain string, record string, ipAddress string, recordType linodego.DomainRecordType) error {
+	domainRecord, err := fetchRecord(ctx, linodeClient, domainId, record, recordType)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -113,13 +123,14 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 
 	if domainRecord != nil {
 		if domainRecord.Target == ipAddress {
+			log.Printf("Record %s for domain %s is already up to date\n", record, domain)
 			return nil
 		} else {
 			fmt.Printf("Updating record %s for domain %s with IP %s\n", record, domain, ipAddress)
 			_, err := linodeClient.UpdateDomainRecord(ctx, domainId, domainRecord.ID, linodego.DomainRecordUpdateOptions{
 				Name:   record,
 				Target: ipAddress,
-				Type:   linodego.RecordTypeA,
+				Type:   recordType,
 				TTLSec: config.DefaultTTL,
 			})
 			if err != nil {
@@ -132,7 +143,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 		_, err := linodeClient.CreateDomainRecord(ctx, domainId, linodego.DomainRecordCreateOptions{
 			Name:   record,
 			Target: ipAddress,
-			Type:   linodego.RecordTypeA,
+			Type:   recordType,
 			TTLSec: config.DefaultTTL,
 		})
 		if err != nil {
@@ -162,12 +173,24 @@ func main() {
 	config := getConfig("config.json")
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, configKey{}, config)
-	myIP := getMyIP(ctx)
+	myIP, err4 := getMyIP(ctx, "tcp4")
+	myIP6, err6 := getMyIP(ctx, "tcp6")
 	for _, entry := range config.DomainsToUpdate {
 		domain, err := fetchDomain(ctx, &linodeClient, entry.DomainName)
 		if err != nil {
 			log.Fatalf("Can't find domain %s.\n", entry.DomainName)
 		}
-		updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP)
+		if err4 == nil {
+			updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP, linodego.RecordTypeA)
+		} else {
+			log.Println("Error fetching IPv4 address")
+			log.Println(err4)
+		}
+		if err6 == nil {
+			updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP6, linodego.RecordTypeAAAA)
+		} else {
+			log.Println("Error fetching IPv6 address")
+			log.Println(err6)
+		}
 	}
 }
