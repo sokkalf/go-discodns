@@ -126,7 +126,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 			log.Printf("Record %s for domain %s is already up to date\n", record, domain)
 			return nil
 		} else {
-			fmt.Printf("Updating record %s for domain %s with IP %s\n", record, domain, ipAddress)
+			log.Printf("Updating record %s for domain %s with IP %s\n", record, domain, ipAddress)
 			_, err := linodeClient.UpdateDomainRecord(ctx, domainId, domainRecord.ID, linodego.DomainRecordUpdateOptions{
 				Name:   record,
 				Target: ipAddress,
@@ -139,7 +139,7 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 		}
 	} else {
 		// we need to create the record
-		fmt.Printf("Creating record %s for domain %s with IP %s\n", record, domain, ipAddress)
+		log.Printf("Creating record %s for domain %s with IP %s\n", record, domain, ipAddress)
 		_, err := linodeClient.CreateDomainRecord(ctx, domainId, linodego.DomainRecordCreateOptions{
 			Name:   record,
 			Target: ipAddress,
