@@ -21,6 +21,8 @@ type Config struct {
 	DomainsToUpdate []DomainToUpdate `json:"domains"`
 	DefaultTTL      int              `json:"default_ttl"`
 	IpFinderURL     string           `json:"ip_finder_url"`
+	IPv6            bool             `json:"ipv6"`
+	IPv4            bool             `json:"ipv4"`
 }
 
 type DomainToUpdate struct {
@@ -44,12 +46,24 @@ func getConfig(fileName string) Config {
 		log.Fatal("Error parsing file")
 	}
 
+	if !config.IPv4 && !config.IPv6 {
+		config.IPv4 = true
+		config.IPv6 = true
+	}
+
 	return config
 }
 
 // gets the current outgoing IP
 func getMyIP(ctx context.Context, mode string) (string, error) {
 	config := ctx.Value(configKey{}).(Config)
+	if !config.IPv4 && mode == "tcp4" {
+		return "", nil
+	}
+	if !config.IPv6 && mode == "tcp6" {
+		return "", nil
+	}
+
 	var zeroDialer net.Dialer
 	httpClient := &http.Client{}
 	transport := http.DefaultTransport.(*http.Transport).Clone()
@@ -180,17 +194,21 @@ func main() {
 		if err != nil {
 			log.Fatalf("Can't find domain %s.\n", entry.DomainName)
 		}
-		if err4 == nil {
-			updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP, linodego.RecordTypeA)
-		} else {
-			log.Println("Error fetching IPv4 address")
-			log.Println(err4)
+		if config.IPv4 {
+			if err4 == nil {
+				updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP, linodego.RecordTypeA)
+			} else {
+				log.Println("Error fetching IPv4 address")
+				log.Println(err4)
+			}
 		}
-		if err6 == nil {
-			updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP6, linodego.RecordTypeAAAA)
-		} else {
-			log.Println("Error fetching IPv6 address")
-			log.Println(err6)
+		if config.IPv6 {
+			if err6 == nil {
+				updateRecord(ctx, &linodeClient, domain.ID, entry.DomainName, entry.RecordName, myIP6, linodego.RecordTypeAAAA)
+			} else {
+				log.Println("Error fetching IPv6 address")
+				log.Println(err6)
+			}
 		}
 	}
 }
