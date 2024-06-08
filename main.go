@@ -168,6 +168,12 @@ func updateRecord(ctx context.Context, linodeClient *linodego.Client, domainId i
 }
 
 func main() {
+	var configFile string
+	if len(os.Args) != 2 {
+		configFile = "config.json"
+	} else {
+		configFile = os.Args[1]
+	}
 	apiKey, ok := os.LookupEnv("LINODE_TOKEN")
 
 	if !ok {
@@ -184,7 +190,7 @@ func main() {
 
 	linodeClient := linodego.NewClient(oauth2Client)
 
-	config := getConfig("config.json")
+	config := getConfig(configFile)
 	ctx := context.Background()
 	ctx = context.WithValue(ctx, configKey{}, config)
 	myIP, err4 := getMyIP(ctx, "tcp4")
