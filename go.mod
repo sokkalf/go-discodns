@@ -4,7 +4,7 @@ go 1.24
 
 require (
 	github.com/linode/linodego v1.48.1
-	golang.org/x/oauth2 v0.28.0
+	golang.org/x/oauth2 v0.29.0
 )
 
 require (
