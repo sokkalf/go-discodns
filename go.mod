@@ -3,7 +3,7 @@ module go-discodns
 go 1.24
 
 require (
-	github.com/linode/linodego v1.52.1
+	github.com/linode/linodego v1.53.0
 	golang.org/x/oauth2 v0.30.0
 )
 
